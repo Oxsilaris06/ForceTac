@@ -29,33 +29,34 @@ jobs:
           
           echo "📦 Copying critical infrastructure files..."
           
-          # 1. Gradle Wrapper (Vital)
+          # 1. Gradle Wrapper
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          # 2. Root Build Config (Vital for 'com.android.application' plugin)
-          if [ ! -f "android/build.gradle" ]; then
-             echo "⚠️ Root build.gradle missing. Restoring from template..."
-             cp TempProject/android/build.gradle android/
-          fi
-
-          # 3. Settings (Vital for including ':app')
+          # 2. Settings
           if [ ! -f "android/settings.gradle" ]; then
-             echo "⚠️ settings.gradle missing. Restoring from template..."
+             echo "⚠️ settings.gradle missing. Restoring..."
              cp TempProject/android/settings.gradle android/
           fi
           
-          # 4. Gradle Properties
+          # 3. Gradle Properties
           if [ ! -f "android/gradle.properties" ]; then
              cp TempProject/android/gradle.properties android/
           fi
 
+          # 4. Root Build.gradle - FORCE REPLACEMENT/CREATION if missing or too simple
+          # The template one is usually correct for the classpath.
+          if [ ! -f "android/build.gradle" ]; then
+             echo "⚠️ Root build.gradle missing. Restoring..."
+             cp TempProject/android/build.gradle android/
+          fi
+          
           # 5. Cleanup
           rm -rf TempProject
           chmod +x android/gradlew
           
-          echo "✅ Android skeleton fully restored."
+          echo "✅ Android skeleton restored."
 
       - name: Build Release APK
         run: |
