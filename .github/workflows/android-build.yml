@@ -26,8 +26,10 @@ jobs:
       - name: Setup Gradle
         run: |
           cd android
-          # Si gradlew n'existe pas, on utilise gradle installé sur l'image runner
+          # Si gradlew n'existe pas, on initialise un projet gradle ou on utilise gradle installé
           if [ ! -f "./gradlew" ]; then
+            echo "Gradle wrapper not found. Initializing Gradle..."
+            gradle init --type basic --dsl groovy --project-name ForceTac
             gradle wrapper
           fi
           chmod +x gradlew
