@@ -51,17 +51,18 @@ export default function App() {
     if (Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
       if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        Geolocation.watchPosition(
+        Geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
             setLocation({ latitude, longitude });
-            // Envoi de la position réelle au module natif pour le dictionnaire intelligent
+            // Envoi de la position réelle au module natif
             if (NfcModule && NfcModule.updateLocation) {
                 NfcModule.updateLocation(latitude, longitude);
+                addLog(`GPS LOCKED: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'info');
             }
           },
           (error) => addLog(`GPS ERROR: ${error.message}`, 'danger'),
-          { enableHighAccuracy: true, distanceFilter: 10, interval: 5000 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
         );
       } else {
         addLog("GPS REFUSÉ - Dictionnaire local désactivé", 'danger');
