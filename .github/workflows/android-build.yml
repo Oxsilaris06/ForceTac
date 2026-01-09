@@ -57,11 +57,12 @@ jobs:
 
           # Fix: error: resource xml/apdu_service not found
           # Note: We use a placeholder AID. Ensure this matches your real requirements if needed.
+          # CORRECTION: android:description MUST be a @string reference, not a raw string.
           echo '<?xml version="1.0" encoding="utf-8"?>
           <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
               android:description="@string/app_name"
               android:requireDeviceUnlock="false">
-              <aid-group android:category="other" android:description="ForceTac">
+              <aid-group android:category="other" android:description="@string/app_name">
                   <aid-filter android:name="F00102030405"/>
               </aid-group>
           </host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
