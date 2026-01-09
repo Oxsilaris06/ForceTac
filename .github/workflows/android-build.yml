@@ -1,6 +1,6 @@
 name: ForceTac Android Build
 
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
@@ -22,10 +22,19 @@ jobs:
       - name: Install Node Deps
         run: npm install
 
+      # Étape critique ajoutée : Vérification et setup de Gradle
+      - name: Setup Gradle
+        run: |
+          cd android
+          # Si gradlew n'existe pas, on utilise gradle installé sur l'image runner
+          if [ ! -f "./gradlew" ]; then
+            gradle wrapper
+          fi
+          chmod +x gradlew
+
       - name: Build Release APK
         run: |
           cd android
-          chmod +x gradlew
           ./gradlew assembleRelease
 
       - name: Upload APK
