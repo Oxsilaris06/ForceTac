@@ -1,6 +1,7 @@
 name: ForceTac Android Build
 
-on: [push, workflow_dispatch]
+# Modification ici : Uniquement déclenchement manuel
+on: [workflow_dispatch]
 
 jobs:
   build:
@@ -25,6 +26,7 @@ jobs:
       # Étape critique : Génération du Keystore de Debug manquant
       - name: Generate Debug Keystore
         run: |
+          mkdir -p android/app
           cd android/app
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           echo "✅ Keystore generated at android/app/debug.keystore"
@@ -32,30 +34,39 @@ jobs:
       - name: Setup Android Skeleton
         run: |
           echo "🔧 Generating temporary React Native project..."
+          # On utilise une version spécifique pour éviter les surprises
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
           
           echo "📦 Copying critical infrastructure files..."
           
+          # 1. Gradle Wrapper (Vital)
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
+          # 2. Root Build Config (Vital pour le plugin 'com.android.application')
+          # Si android/build.gradle n'existe pas, on le prend du template
+          if [ ! -f "android/build.gradle" ]; then
+             echo "⚠️ Root build.gradle missing. Restoring from template..."
+             cp TempProject/android/build.gradle android/
+          fi
+
+          # 3. Settings (Vital pour inclure ':app')
           if [ ! -f "android/settings.gradle" ]; then
+             echo "⚠️ settings.gradle missing. Restoring from template..."
              cp TempProject/android/settings.gradle android/
           fi
           
+          # 4. Gradle Properties
           if [ ! -f "android/gradle.properties" ]; then
              cp TempProject/android/gradle.properties android/
           fi
 
-          if [ ! -f "android/build.gradle" ]; then
-             cp TempProject/android/build.gradle android/
-          fi
-          
+          # 5. Nettoyage
           rm -rf TempProject
           chmod +x android/gradlew
           
-          echo "✅ Android skeleton restored."
+          echo "✅ Android skeleton fully restored."
 
       - name: Build Release APK
         run: |
