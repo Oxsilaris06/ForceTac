@@ -5,6 +5,8 @@ add_library(
     forcetac_core
     SHARED
     forcetac_core.cpp
+    # Ajoutez votre fichier C ici
+    crypto1.c 
 )
 
 find_library(log-lib log)
