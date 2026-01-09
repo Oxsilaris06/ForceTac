@@ -1,18 +1,18 @@
 {
   "meta": {
-    "version": "4.0-EXTENDED-STD",
-    "source": "Proxmark3 / LibNFC Community",
-    "description": "Base de données complète incluant extended-std.keys"
+    "version": "5.0-ICEMAN-MERGE",
+    "source": "ForceTac / Iceman / Proxmark3 Community",
+    "description": "Base consolidée : Vigik étendu, Hôtels internationaux & Transports"
   },
   "universal": [
     "FFFFFFFFFFFF",
-    "A0A1A2A3A4A5",
-    "D3F7D3F7D3F7",
     "000000000000",
+    "A0A1A2A3A4A5",
     "B0B1B2B3B4B5",
+    "AABBCCDDEEFF",
     "4D3A99C351DD",
     "1A982C7E459A",
-    "AABBCCDDEEFF",
+    "D3F7D3F7D3F7",
     "714C5C886E97",
     "587EE5F9350F",
     "A0478CC39091",
@@ -21,26 +21,80 @@
     "A0B0C0D0E0F0",
     "A1B1C1D1E1F1",
     "000000000001",
-    "123456789ABC"
+    "123456789ABC",
+    "ABCDEF123456",
+    "AA1122334455",
+    "112233445566",
+    "010203040506"
   ],
   "zones": [
     {
-      "id": "FR_VIGIK_LEGACY",
-      "provider": "HEXACT_URMET_COMELIT",
-      "description": "Clés fréquentes sur les vieux systèmes français",
+      "id": "FR_VIGIK_INTRA",
+      "provider": "VIGIK_HEXACT_INTRATONE",
+      "description": "Systèmes Vigik Français (Hexact, Comelit, Intratone)",
       "keys": [
         "A0A1A2A3A4A5",
         "B0B1B2B3B4B5",
-        "D3F7D3F7D3F7",
         "4D3A99C351DD",
         "1A982C7E459A",
-        "000131b93f28"
+        "000131b93f28",
+        "314B49474956",
+        "564C505F4D41",
+        "BA5B895DA162",
+        "484558414354",
+        "A22AE129C013",
+        "49FAE4E3849F",
+        "38FCF33072E0",
+        "8AD5517B4B18"
       ]
     },
     {
-      "id": "IRON_LOGIC",
-      "provider": "IL_RUSSIA",
-      "description": "Systèmes Iron Logic (Très communs en Europe de l'Est)",
+      "id": "HOTEL_SYSTEMS",
+      "provider": "VingCard_Onity_Kaba_Marriott",
+      "description": "Hôtels Internationaux (Marriott, Westin, Onity, Saflok)",
+      "keys": [
+        "6CA761AB6CA7",
+        "FC00018778F7",
+        "00000FFE2488",
+        "5C598C9C58B5",
+        "E4D2770A89BE",
+        "4B0B20107CCB",
+        "8A19D40CF2B5",
+        "3961EA82C46D",
+        "90C270F690C2",
+        "0000013B0ED0",
+        "487339FA02E0",
+        "1352C68F7A56",
+        "500AE915F50A",
+        "D213B093B79A",
+        "43012BD9EB87",
+        "3119A70628EB",
+        "20C166C00ADB"
+      ]
+    },
+    {
+      "id": "TRANSPORT_GLOBAL",
+      "provider": "Oyster_SUBE_Clipper",
+      "description": "Transports Londres (Oyster), Argentine (SUBE), USA",
+      "keys": [
+        "374BF468607F",
+        "BFC8E353AF63",
+        "15CAFD6159F6",
+        "62EFD80AB715",
+        "987A7F7F1A35",
+        "C4104FA3C526",
+        "4C5A766DFE3A",
+        "32C6768847F5",
+        "F68930789631",
+        "A7AE4A5A33DC",
+        "6B857B568C10",
+        "E2CE9A674CBE"
+      ]
+    },
+    {
+      "id": "IRON_LOGIC_EAST",
+      "provider": "IL_RUSSIA_UKRAINE",
+      "description": "Systèmes Iron Logic & Transport Est",
       "keys": [
         "A3A26EF4C6B0",
         "2C3FEAAE99FC",
@@ -51,65 +105,29 @@
         "B38D82CF7B6C",
         "8228D2AA6EFA",
         "2C7E983588A3",
-        "CF7A7B77E232"
-      ]
-    },
-    {
-      "id": "TRANSPORT_RUSSIA",
-      "provider": "TROIKA_STRELKA",
-      "description": "Cartes de transport Moscou/St Petersbourg",
-      "keys": [
+        "CF7A7B77E232",
         "EC29806D9738",
         "08B386463229",
-        "0E8F64340BA4",
-        "0F1C63013DBA",
-        "2AA05ED1856F",
-        "3367BFAA91DB",
-        "4B609876BBA3",
         "038B5F9B5A2A",
         "04DC35277635"
       ]
     },
     {
-      "id": "HOTEL_SYSTEMS",
-      "provider": "VingCard_Kaba",
-      "description": "Systèmes hôteliers internationaux communs",
-      "keys": [
-        "6CA761AB6CA7",
-        "FC00018778F7",
-        "00000FFE2488",
-        "5C598C9C58B5",
-        "E4D2770A89BE",
-        "4B0B20107CCB"
-      ]
-    },
-    {
-      "id": "MISC_EUROPE",
-      "provider": "University_Office",
-      "description": "Divers campus et bureaux (UK, NL, FR)",
-      "keys": [
-        "BB7923232725",
-        "A95BD5BB4FC5",
-        "B099335628DF",
-        "435DF6296EC4",
-        "2338B4913222",
-        "FF75AFDA5A3C",
-        "558AAD64EB5B",
-        "E9A553102EA5",
-        "F982E971CFED"
-      ]
-    },
-    {
       "id": "ARCADE_GAMING",
-      "provider": "Bandai_Sega",
-      "description": "Cartes de jeu (Aime, Banapassport)",
+      "provider": "Bandai_Sega_Konami",
+      "description": "Cartes de jeu (Aime, Banapassport, Nesys)",
       "keys": [
         "6090D00632F5",
         "019761AA8082",
         "574343467632",
         "A99164400748",
         "168168168168",
-        "198407157610"
+        "198407157610",
+        "62742819AD7C",
+        "CC5075E42BA1",
+        "B9DF35A0814C",
+        "4B6F74696174",
+        "6F746961744B"
       ]
     }
   ],
@@ -122,6 +140,10 @@
     "4B0B20107CCB", "569369C5A0E5", "632193BE1C3C",
     "314B49474956", "564C505F4D41",
     "807119F81418", "22C8BCD10AAA", "0AAABA420191",
-    "0854BF31111E", "0C03A720F208", "135B88A94B8B"
+    "0854BF31111E", "0C03A720F208", "135B88A94B8B",
+    "454841585443", "190819842023", "B001614C6602",
+    "353631303041", "A00000000000", "B00000000000",
+    "C00000000000", "D00000000000", "E00000000000",
+    "F00000000000", "4143414F5250", "434F52504143"
   ]
 }
