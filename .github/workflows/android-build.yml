@@ -1,8 +1,6 @@
 name: ForceTac Android Build
 
-# Déclenchement manuel uniquement (bouton "Run workflow")
-on: 
-  workflow_dispatch:
+on: [push, workflow_dispatch]
 
 jobs:
   build:
@@ -24,62 +22,40 @@ jobs:
       - name: Install Node Deps
         run: npm install
 
-      - name: Setup Android Environment & Fix Resources
+      # Étape critique : Génération du Keystore de Debug manquant
+      - name: Generate Debug Keystore
         run: |
-          echo "🔧 Generating temporary React Native project for scaffolding..."
+          cd android/app
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          echo "✅ Keystore generated at android/app/debug.keystore"
+
+      - name: Setup Android Skeleton
+        run: |
+          echo "🔧 Generating temporary React Native project..."
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
           
-          echo "📦 Restoring infrastructure files..."
+          echo "📦 Copying critical infrastructure files..."
           
-          # 1. Gradle Infrastructure
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          if [ ! -f "android/settings.gradle" ]; then cp TempProject/android/settings.gradle android/; fi
-          if [ ! -f "android/gradle.properties" ]; then cp TempProject/android/gradle.properties android/; fi
-          if [ ! -f "android/build.gradle" ]; then cp TempProject/android/build.gradle android/; fi
+          if [ ! -f "android/settings.gradle" ]; then
+             cp TempProject/android/settings.gradle android/
+          fi
           
-          # 2. Fix Missing Resources (Source of the build failure)
-          echo "🩹 Repairing missing XML resources..."
-          mkdir -p android/app/src/main/res/values
-          mkdir -p android/app/src/main/res/xml
-          
-          # Fix: error: resource style/AppTheme not found
-          if [ ! -f "android/app/src/main/res/values/styles.xml" ]; then
-            echo '<?xml version="1.0" encoding="utf-8"?>
-            <resources>
-                <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-                    <item name="android:textColor">#000000</item>
-                </style>
-            </resources>' > android/app/src/main/res/values/styles.xml
+          if [ ! -f "android/gradle.properties" ]; then
+             cp TempProject/android/gradle.properties android/
           fi
 
-          # Fix: error: resource xml/apdu_service not found
-          # Note: We use a placeholder AID. Ensure this matches your real requirements if needed.
-          # CORRECTION: android:description MUST be a @string reference, not a raw string.
-          echo '<?xml version="1.0" encoding="utf-8"?>
-          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
-              android:description="@string/app_name"
-              android:requireDeviceUnlock="false">
-              <aid-group android:category="other" android:description="@string/app_name">
-                  <aid-filter android:name="F00102030405"/>
-              </aid-group>
-          </host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
-          
-          # Fix: ensures @string/app_name exists for the manifest/apdu
-          if [ ! -f "android/app/src/main/res/values/strings.xml" ]; then
-             echo '<?xml version="1.0" encoding="utf-8"?>
-             <resources>
-                 <string name="app_name">ForceTac</string>
-             </resources>' > android/app/src/main/res/values/strings.xml
+          if [ ! -f "android/build.gradle" ]; then
+             cp TempProject/android/build.gradle android/
           fi
-
-          # 3. Cleanup
+          
           rm -rf TempProject
           chmod +x android/gradlew
           
-          echo "✅ Android environment ready."
+          echo "✅ Android skeleton restored."
 
       - name: Build Release APK
         run: |
