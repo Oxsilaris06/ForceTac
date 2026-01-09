@@ -1,0 +1,40 @@
+apply plugin: "com.android.application"
+
+android {
+    namespace "com.forcetac"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.forcetac"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++20"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+
+    signingConfigs {
+        release {
+            // Configurer avec vos secrets GitHub pour l'APK finale
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+}
