@@ -9,7 +9,6 @@ import { NativeModules, DeviceEventEmitter } from 'react-native';
 
 const { NfcModule } = NativeModules;
 
-// Palette "ComTac Black Ops"
 const COLORS = {
   BG: '#050505',
   CARD: '#18181b',
@@ -21,10 +20,7 @@ const COLORS = {
   MUTED: '#71717a'
 };
 
-const hapticOpts = {
-  enableVibrateFallback: true,
-  ignoreAndroidSystemSettings: true
-};
+const hapticOpts = { enableVibrateFallback: true, ignoreAndroidSystemSettings: true };
 
 export default function App() {
   const [status, setStatus] = useState<'IDLE' | 'SCANNING' | 'CRACKING' | 'SUCCESS' | 'ERROR'>('IDLE');
@@ -53,15 +49,23 @@ export default function App() {
 
   const requestPermissions = async () => {
     if (Platform.OS === 'android') {
-      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-      Geolocation.getCurrentPosition(
-        (position) => {
-          setLocation(position.coords);
-          addLog(`GPS LOCKED: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`, 'info');
-        },
-        (error) => addLog(`GPS ERROR: ${error.message}`, 'danger'),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        Geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            setLocation({ latitude, longitude });
+            // Envoi de la position réelle au module natif pour le dictionnaire intelligent
+            if (NfcModule && NfcModule.updateLocation) {
+                NfcModule.updateLocation(latitude, longitude);
+            }
+          },
+          (error) => addLog(`GPS ERROR: ${error.message}`, 'danger'),
+          { enableHighAccuracy: true, distanceFilter: 10, interval: 5000 }
+        );
+      } else {
+        addLog("GPS REFUSÉ - Dictionnaire local désactivé", 'danger');
+      }
     }
   };
 
@@ -78,7 +82,7 @@ export default function App() {
         break;
       case 'CRACK_START':
         setStatus('CRACKING');
-        addLog("CAPTURE NONCES OK. CALCUL MFKEY32...", 'info');
+        addLog("CAPTURE NONCES OK. CALCUL EN COURS...", 'info');
         ReactNativeHapticFeedback.trigger("impactHeavy", hapticOpts);
         break;
       case 'KEY_FOUND':
@@ -86,6 +90,10 @@ export default function App() {
         setRecoveredKey(e.key);
         addLog(`CLÉ RÉCUPÉRÉE: ${e.key}`, 'success');
         ReactNativeHapticFeedback.trigger("notificationSuccess", hapticOpts);
+        break;
+      case 'ERROR':
+        setStatus('ERROR');
+        addLog(`ERREUR: ${e.message}`, 'danger');
         break;
     }
   };
@@ -96,11 +104,7 @@ export default function App() {
 
   const triggerDowngrade = () => {
     addLog("FORÇAGE MANUEL: DOWNGRADE ATTACK", 'warning');
-    if (NfcModule && NfcModule.startDowngrade) {
-        NfcModule.startDowngrade();
-    } else {
-        addLog("MODULE NFC NON LIÉ", 'danger');
-    }
+    if (NfcModule?.startDowngrade) NfcModule.startDowngrade();
   };
 
   const getStatusColor = () => {
@@ -130,8 +134,10 @@ export default function App() {
         <Animated.View style={[styles.radarCircle, { transform: [{ scale: pulseAnim }], borderColor: getStatusColor() }]}>
           <View style={[styles.radarCore, { backgroundColor: getStatusColor() }]} />
         </Animated.View>
-        <Text style={styles.radarText}>
-          {location ? `ZONE: ${location.latitude.toFixed(2)} / ${location.longitude.toFixed(2)}` : "ACQUISITION SATELLITE..."}
+        <Text style={[styles.radarText, { color: location ? COLORS.TEXT : COLORS.WARNING }]}>
+          {location 
+            ? `CIBLE: ${location.latitude.toFixed(4)} / ${location.longitude.toFixed(4)}` 
+            : "📍 POSITION EN COURS DE RECHERCHE..."}
         </Text>
       </View>
 
@@ -170,7 +176,7 @@ const styles = StyleSheet.create({
   radarContainer: { alignItems: 'center', justifyContent: 'center', height: 200, marginBottom: 20 },
   radarCircle: { width: 120, height: 120, borderRadius: 60, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radarCore: { width: 20, height: 20, borderRadius: 10, opacity: 0.8 },
-  radarText: { color: COLORS.MUTED, marginTop: 20, fontSize: 10, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  radarText: { marginTop: 20, fontSize: 10, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 1 },
   terminalWindow: { flex: 1, backgroundColor: '#000', borderRadius: 8, padding: 15, borderWidth: 1, borderColor: '#333' },
   terminalHeader: { color: '#333', fontSize: 10, marginBottom: 10, fontWeight: 'bold' },
   logs: { flex: 1 },
