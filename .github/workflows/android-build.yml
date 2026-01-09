@@ -66,22 +66,24 @@ jobs:
             echo "✅ styles.xml created"
           fi
 
-          # 3. Génération de apdu_service.xml (Nécessaire pour le HCE/Downgrade)
-          if [ ! -f "android/app/src/main/res/xml/apdu_service.xml" ]; then
-            echo '<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
-                android:description="@string/app_name"
-                android:requireDeviceUnlock="false">
-                <aid-group android:description="ForceTac" android:category="other">
-                    <aid-filter android:name="F0010203040506"/>
-                </aid-group>
-            </host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
-            echo "✅ apdu_service.xml created"
-          fi
+          # 3. Génération de strings.xml (app_name & service_desc)
+          # On écrase pour être sûr d'avoir la bonne string
+          echo '<resources>
+              <string name="app_name">ForceTac</string>
+              <string name="service_desc">ForceTac Service</string>
+          </resources>' > android/app/src/main/res/values/strings.xml
+          echo "✅ strings.xml created/updated"
 
-          # 4. Génération de strings.xml (app_name)
-          if [ ! -f "android/app/src/main/res/values/strings.xml" ]; then
-             echo '<resources><string name="app_name">ForceTac</string></resources>' > android/app/src/main/res/values/strings.xml
-          fi
+          # 4. Génération de apdu_service.xml (Nécessaire pour le HCE/Downgrade)
+          # Correction: Utilisation de @string/service_desc au lieu d'une string brute
+          echo '<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:description="@string/service_desc"
+              android:requireDeviceUnlock="false">
+              <aid-group android:description="@string/service_desc" android:category="other">
+                  <aid-filter android:name="F0010203040506"/>
+              </aid-group>
+          </host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
+          echo "✅ apdu_service.xml created"
 
           # Nettoyage
           rm -rf TempProject
