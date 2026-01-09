@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ForceTac</string>
+    <string name="service_desc">ForceTac NFC Service</string>
+</resources>
