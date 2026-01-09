@@ -25,77 +25,29 @@ jobs:
       - name: Generate Debug Keystore
         run: |
           mkdir -p android/app
-          cd android/app
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          echo "✅ Keystore generated at android/app/debug.keystore"
+          keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Setup Android Skeleton & Inject Native Code
+      - name: Restore Gradle Infrastructure
         run: |
-          echo "🔧 Generating temporary React Native project..."
+          # On génère un projet temp juste pour récupérer gradlew et settings.gradle
+          # car ils sont souvent exclus par gitignore, mais on NE TOUCHE PAS à votre code source Java/Kotlin
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
           
-          echo "📦 Migrating skeleton to ForceTac structure..."
-          
-          # 1. Copie des fichiers de build essentiels
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          if [ ! -f "android/build.gradle" ]; then cp TempProject/android/build.gradle android/; fi
-          if [ ! -f "android/settings.gradle" ]; then cp TempProject/android/settings.gradle android/; fi
-          if [ ! -f "android/gradle.properties" ]; then cp TempProject/android/gradle.properties android/; fi
-
-          # 2. Injection du package dans MainApplication.java (La partie critique)
-          # On cherche le fichier MainApplication généré (il est dans com/tempproject par défaut, on doit le trouver)
-          MAIN_APP_PATH=$(find TempProject/android/app/src/main/java -name "MainApplication.kt" -o -name "MainApplication.java")
+          # Si settings.gradle manque, on le prend, mais on le modifie pour pointer vers VOTRE app
+          if [ ! -f "android/settings.gradle" ]; then
+             cp TempProject/android/settings.gradle android/
+          fi
           
-          if [ -f "$MAIN_APP_PATH" ]; then
-             echo "Found MainApplication at $MAIN_APP_PATH"
-             
-             # On le déplace vers notre package com.forcetac
-             mkdir -p android/app/src/main/java/com/forcetac/
-             cp "$MAIN_APP_PATH" android/app/src/main/java/com/forcetac/
-             
-             # On modifie le package name
-             sed -i 's/package com.tempproject/package com.forcetac/g' android/app/src/main/java/com/forcetac/MainApplication.*
-             
-             # On injecte ForceTacPackage
-             sed -i '/import com.facebook.react.ReactPackage/a import com.forcetac.ForceTacPackage;' android/app/src/main/java/com/forcetac/MainApplication.*
-             
-             # Injection dans getPackages() - fonctionne pour Java et Kotlin
-             sed -i '/packages.add(new MyReactNativePackage());/a packages.add(new ForceTacPackage());' android/app/src/main/java/com/forcetac/MainApplication.java || true
-             sed -i '/add(MyReactNativePackage())/a add(ForceTacPackage())' android/app/src/main/java/com/forcetac/MainApplication.kt || true
-             
-             # Si le sed n'a pas marché (cas où MyReactNativePackage n'existe pas), on force l'ajout brutal
-             if ! grep -q "ForceTacPackage" android/app/src/main/java/com/forcetac/MainApplication.*; then
-                 echo "⚠️ Manual injection required for ForceTacPackage"
-                 # Fallback pour Java : on cherche "return packages;" et on insère avant
-                 sed -i '/return packages;/i packages.add(new ForceTacPackage());' android/app/src/main/java/com/forcetac/MainApplication.java 2>/dev/null || true
-                 # Fallback pour Kotlin
-                 sed -i '/return packages/i add(ForceTacPackage())' android/app/src/main/java/com/forcetac/MainApplication.kt 2>/dev/null || true
-             fi
-          else
-             echo "❌ CRITICAL: Could not find MainApplication in skeleton!"
-             exit 1
+          if [ ! -f "android/build.gradle" ]; then
+             cp TempProject/android/build.gradle android/
           fi
-
-          # 3. Génération des ressources manquantes
-          mkdir -p android/app/src/main/res/values
-          mkdir -p android/app/src/main/res/xml
-
-          if [ ! -f "android/app/src/main/res/values/styles.xml" ]; then
-            echo '<resources><style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar"><item name="android:textColor">#000000</item></style></resources>' > android/app/src/main/res/values/styles.xml
-          fi
-
-          echo '<resources><string name="app_name">ForceTac</string><string name="service_desc">ForceTac Service</string></resources>' > android/app/src/main/res/values/strings.xml
-
-          echo '<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="@string/service_desc" android:requireDeviceUnlock="false"><aid-group android:description="@string/service_desc" android:category="other"><aid-filter android:name="F0010203040506"/></aid-group></host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
-
-          # Nettoyage
+          
           rm -rf TempProject
           chmod +x android/gradlew
-          
-          echo "✅ Android skeleton fully injected."
 
       - name: Build Release APK
         run: |
