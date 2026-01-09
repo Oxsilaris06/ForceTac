@@ -1,6 +1,8 @@
 /**
  * @format
  */
+// IMPORT CRITIQUE : Les polyfills doivent être chargés AVANT tout le reste
+import './polyfills';
 
 import {AppRegistry} from 'react-native';
 import App from './App';
