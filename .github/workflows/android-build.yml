@@ -22,22 +22,44 @@ jobs:
       - name: Install Node Deps
         run: npm install
 
-      # Étape critique ajoutée : Vérification et setup de Gradle
-      - name: Setup Gradle
+      # Étape critique : Génération chirurgicale du squelette Android
+      - name: Setup Android Skeleton
         run: |
-          cd android
-          # Si gradlew n'existe pas, on initialise un projet gradle ou on utilise gradle installé
-          if [ ! -f "./gradlew" ]; then
-            echo "Gradle wrapper not found. Initializing Gradle..."
-            gradle init --type basic --dsl groovy --project-name ForceTac
-            gradle wrapper
+          # 1. Créer un projet React Native temporaire pour récupérer les fichiers manquants
+          echo "Generating temporary React Native project..."
+          npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
+          
+          # 2. Copier les fichiers essentiels manquants vers le dossier android/ actuel
+          # On utilise -n pour ne PAS écraser vos fichiers existants (comme build.gradle ou AndroidManifest.xml)
+          
+          echo "Copying Gradle wrapper..."
+          cp -r TempProject/android/gradle android/
+          cp TempProject/android/gradlew android/
+          cp TempProject/android/gradlew.bat android/
+          
+          echo "Copying missing config files..."
+          # settings.gradle est souvent manquant si on a juste copié des sources
+          if [ ! -f "android/settings.gradle" ]; then
+             cp TempProject/android/settings.gradle android/
           fi
-          chmod +x gradlew
+          
+          # gradle.properties standard
+          if [ ! -f "android/gradle.properties" ]; then
+             cp TempProject/android/gradle.properties android/
+          fi
+
+          # 3. Nettoyage
+          rm -rf TempProject
+          
+          # 4. Rendre le wrapper exécutable
+          chmod +x android/gradlew
+          
+          echo "✅ Android skeleton restored."
 
       - name: Build Release APK
         run: |
           cd android
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
