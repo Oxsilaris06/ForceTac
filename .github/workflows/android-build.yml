@@ -1,6 +1,6 @@
 name: ForceTac Android Build
 
-# Modification ici : Uniquement déclenchement manuel
+# Modification : Déclenchement manuel uniquement
 on: [workflow_dispatch]
 
 jobs:
