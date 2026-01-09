@@ -1,6 +1,5 @@
 name: ForceTac Android Build
 
-# Modification : Déclenchement manuel uniquement
 on: [workflow_dispatch]
 
 jobs:
@@ -23,7 +22,6 @@ jobs:
       - name: Install Node Deps
         run: npm install
 
-      # Étape critique : Génération du Keystore de Debug manquant
       - name: Generate Debug Keystore
         run: |
           mkdir -p android/app
@@ -31,42 +29,65 @@ jobs:
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           echo "✅ Keystore generated at android/app/debug.keystore"
 
-      - name: Setup Android Skeleton
+      - name: Setup Android Skeleton & Resources
         run: |
           echo "🔧 Generating temporary React Native project..."
-          # On utilise une version spécifique pour éviter les surprises
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
           
           echo "📦 Copying critical infrastructure files..."
-          
-          # 1. Gradle Wrapper (Vital)
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          # 2. Root Build Config (Vital pour le plugin 'com.android.application')
-          # Si android/build.gradle n'existe pas, on le prend du template
+          # Copie des fichiers de configuration si manquants
           if [ ! -f "android/build.gradle" ]; then
-             echo "⚠️ Root build.gradle missing. Restoring from template..."
              cp TempProject/android/build.gradle android/
           fi
-
-          # 3. Settings (Vital pour inclure ':app')
           if [ ! -f "android/settings.gradle" ]; then
-             echo "⚠️ settings.gradle missing. Restoring from template..."
              cp TempProject/android/settings.gradle android/
           fi
-          
-          # 4. Gradle Properties
           if [ ! -f "android/gradle.properties" ]; then
              cp TempProject/android/gradle.properties android/
           fi
 
-          # 5. Nettoyage
+          # --- FIX CRITIQUE : Génération des ressources manquantes ---
+          
+          # 1. Création des dossiers de ressources
+          mkdir -p android/app/src/main/res/values
+          mkdir -p android/app/src/main/res/xml
+
+          # 2. Génération de styles.xml (AppTheme)
+          if [ ! -f "android/app/src/main/res/values/styles.xml" ]; then
+            echo '<resources>
+                <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                    <item name="android:textColor">#000000</item>
+                </style>
+            </resources>' > android/app/src/main/res/values/styles.xml
+            echo "✅ styles.xml created"
+          fi
+
+          # 3. Génération de apdu_service.xml (Nécessaire pour le HCE/Downgrade)
+          if [ ! -f "android/app/src/main/res/xml/apdu_service.xml" ]; then
+            echo '<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+                android:description="@string/app_name"
+                android:requireDeviceUnlock="false">
+                <aid-group android:description="ForceTac" android:category="other">
+                    <aid-filter android:name="F0010203040506"/>
+                </aid-group>
+            </host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
+            echo "✅ apdu_service.xml created"
+          fi
+
+          # 4. Génération de strings.xml (app_name)
+          if [ ! -f "android/app/src/main/res/values/strings.xml" ]; then
+             echo '<resources><string name="app_name">ForceTac</string></resources>' > android/app/src/main/res/values/strings.xml
+          fi
+
+          # Nettoyage
           rm -rf TempProject
           chmod +x android/gradlew
           
-          echo "✅ Android skeleton fully restored."
+          echo "✅ Android skeleton and resources fully restored."
 
       - name: Build Release APK
         run: |
