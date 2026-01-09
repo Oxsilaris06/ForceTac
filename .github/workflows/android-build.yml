@@ -1,6 +1,8 @@
 name: ForceTac Android Build
 
-on: [push, workflow_dispatch]
+# Déclenchement manuel uniquement (bouton "Run workflow")
+on: 
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,41 +24,61 @@ jobs:
       - name: Install Node Deps
         run: npm install
 
-      - name: Setup Android Skeleton
+      - name: Setup Android Environment & Fix Resources
         run: |
-          echo "🔧 Generating temporary React Native project..."
+          echo "🔧 Generating temporary React Native project for scaffolding..."
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
           
-          echo "📦 Copying critical infrastructure files..."
+          echo "📦 Restoring infrastructure files..."
           
-          # 1. Gradle Wrapper
+          # 1. Gradle Infrastructure
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          # 2. Settings
-          if [ ! -f "android/settings.gradle" ]; then
-             echo "⚠️ settings.gradle missing. Restoring..."
-             cp TempProject/android/settings.gradle android/
-          fi
+          if [ ! -f "android/settings.gradle" ]; then cp TempProject/android/settings.gradle android/; fi
+          if [ ! -f "android/gradle.properties" ]; then cp TempProject/android/gradle.properties android/; fi
+          if [ ! -f "android/build.gradle" ]; then cp TempProject/android/build.gradle android/; fi
           
-          # 3. Gradle Properties
-          if [ ! -f "android/gradle.properties" ]; then
-             cp TempProject/android/gradle.properties android/
+          # 2. Fix Missing Resources (Source of the build failure)
+          echo "🩹 Repairing missing XML resources..."
+          mkdir -p android/app/src/main/res/values
+          mkdir -p android/app/src/main/res/xml
+          
+          # Fix: error: resource style/AppTheme not found
+          if [ ! -f "android/app/src/main/res/values/styles.xml" ]; then
+            echo '<?xml version="1.0" encoding="utf-8"?>
+            <resources>
+                <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                    <item name="android:textColor">#000000</item>
+                </style>
+            </resources>' > android/app/src/main/res/values/styles.xml
           fi
 
-          # 4. Root Build.gradle - FORCE REPLACEMENT/CREATION if missing or too simple
-          # The template one is usually correct for the classpath.
-          if [ ! -f "android/build.gradle" ]; then
-             echo "⚠️ Root build.gradle missing. Restoring..."
-             cp TempProject/android/build.gradle android/
-          fi
+          # Fix: error: resource xml/apdu_service not found
+          # Note: We use a placeholder AID. Ensure this matches your real requirements if needed.
+          echo '<?xml version="1.0" encoding="utf-8"?>
+          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:description="@string/app_name"
+              android:requireDeviceUnlock="false">
+              <aid-group android:category="other" android:description="ForceTac">
+                  <aid-filter android:name="F00102030405"/>
+              </aid-group>
+          </host-apdu-service>' > android/app/src/main/res/xml/apdu_service.xml
           
-          # 5. Cleanup
+          # Fix: ensures @string/app_name exists for the manifest/apdu
+          if [ ! -f "android/app/src/main/res/values/strings.xml" ]; then
+             echo '<?xml version="1.0" encoding="utf-8"?>
+             <resources>
+                 <string name="app_name">ForceTac</string>
+             </resources>' > android/app/src/main/res/values/strings.xml
+          fi
+
+          # 3. Cleanup
           rm -rf TempProject
           chmod +x android/gradlew
           
-          echo "✅ Android skeleton restored."
+          echo "✅ Android environment ready."
 
       - name: Build Release APK
         run: |
