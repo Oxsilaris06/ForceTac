@@ -27,25 +27,24 @@ jobs:
           mkdir -p android/app
           keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Restore Gradle Infrastructure
+      # Restauration UNIQUEMENT des outils Gradle manquants (gradlew), sans toucher au code
+      - name: Restore Gradle Tools
         run: |
-          # On génère un projet temp juste pour récupérer gradlew et settings.gradle
-          # car ils sont souvent exclus par gitignore, mais on NE TOUCHE PAS à votre code source Java/Kotlin
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
-          
           cp -r TempProject/android/gradle android/
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          # Si settings.gradle manque, on le prend, mais on le modifie pour pointer vers VOTRE app
+          # Si settings.gradle manque (ce qui arrive souvent), on le prend
           if [ ! -f "android/settings.gradle" ]; then
              cp TempProject/android/settings.gradle android/
           fi
           
+          # Si le build.gradle racine manque, on le prend
           if [ ! -f "android/build.gradle" ]; then
              cp TempProject/android/build.gradle android/
           fi
-          
+
           rm -rf TempProject
           chmod +x android/gradlew
 
