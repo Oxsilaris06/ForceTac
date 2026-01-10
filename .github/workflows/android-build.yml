@@ -41,8 +41,6 @@ jobs:
           npm install -g expo-cli
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
-      # NOTE: On ne sauvegarde PLUS le AndroidManifest.xml car celui du repo est corrompu.
-      # On va en générer un propre à l'étape d'injection.
       - name: Backup Native Code
         run: |
           mkdir -p ../native_backup
@@ -91,7 +89,6 @@ jobs:
           cp ../native_backup/build.gradle android/app/
           
           # FIX CRITIQUE: Génération d'un AndroidManifest.xml PROPRE et VALIDE
-          # (Celui du repo était corrompu/dupliqué, causant l'erreur de parsing)
           cat <<EOF > android/app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.forcetac">
               <uses-permission android:name="android.permission.NFC" />
@@ -118,10 +115,12 @@ jobs:
           EOF
           
           # Création du fichier apdu_service.xml manquant
+          # FIX: On remplace @string/service_desc par une chaîne en dur "ForceTac NFC Service"
+          # Cela évite l'erreur AAPT si strings.xml n'est pas synchronisé.
           mkdir -p android/app/src/main/res/xml
           cat <<EOF > android/app/src/main/res/xml/apdu_service.xml
-          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="@string/service_desc" android:requireDeviceUnlock="false">
-              <aid-group android:description="@string/service_desc" android:category="other">
+          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="ForceTac NFC Service" android:requireDeviceUnlock="false">
+              <aid-group android:description="ForceTac NFC Service" android:category="other">
                   <aid-filter android:name="E01600000000" /> 
                   <aid-filter android:name="D2760000850101" />
               </aid-group>
