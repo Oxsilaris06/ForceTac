@@ -22,12 +22,22 @@ jobs:
       - name: Install Node Deps
         run: npm install
 
+      # Génération du Keystore (CRITIQUE)
       - name: Generate Debug Keystore
         run: |
+          # Création explicite du dossier android/app
           mkdir -p android/app
-          keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          
+          # Génération du fichier keystore
+          keytool -genkey -v -keystore android/app/debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+            
+          echo "✅ Keystore generated:"
+          ls -l android/app/debug.keystore
 
-      # Restauration UNIQUEMENT des outils Gradle manquants (gradlew), sans toucher au code
+      # Restauration de l'infrastructure Gradle
       - name: Restore Gradle Tools
         run: |
           npx react-native@0.73.4 init TempProject --skip-install --version 0.73.4
@@ -35,12 +45,12 @@ jobs:
           cp TempProject/android/gradlew android/
           cp TempProject/android/gradlew.bat android/
           
-          # Si settings.gradle manque (ce qui arrive souvent), on le prend
+          # Si settings.gradle est manquant
           if [ ! -f "android/settings.gradle" ]; then
              cp TempProject/android/settings.gradle android/
           fi
           
-          # Si le build.gradle racine manque, on le prend
+          # Si le build.gradle racine est manquant
           if [ ! -f "android/build.gradle" ]; then
              cp TempProject/android/build.gradle android/
           fi
@@ -48,10 +58,31 @@ jobs:
           rm -rf TempProject
           chmod +x android/gradlew
 
+      # --- NOUVELLE ÉTAPE : INJECTION DE L'ICÔNE ---
+      - name: Inject Custom Icon
+        run: |
+          if [ -f "assets/icon.png" ]; then
+            echo "🎨 Found custom icon in assets/. Overwriting default Android icons..."
+            
+            RES_DIR="android/app/src/main/res"
+            # On écrase les icônes par défaut dans tous les dossiers de densité
+            # C'est une méthode "force brute" efficace pour garantir que l'icône s'affiche
+            for d in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+              mkdir -p "$RES_DIR/$d"
+              cp assets/icon.png "$RES_DIR/$d/ic_launcher.png"
+              cp assets/icon.png "$RES_DIR/$d/ic_launcher_round.png"
+            done
+            echo "✅ Icons updated."
+          else
+            echo "⚠️ assets/icon.png not found. Skipping icon update."
+          fi
+
+      # Build avec debug info
       - name: Build Release APK
         run: |
           cd android
-          ./gradlew assembleRelease --stacktrace
+          # Lancement avec --info pour voir exactement où il cherche le keystore
+          ./gradlew assembleRelease --stacktrace --info
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
