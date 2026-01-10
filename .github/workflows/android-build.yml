@@ -13,7 +13,6 @@ jobs:
         uses: actions/checkout@v4
 
       # FIX ULTIME : Création d'un package-lock.json bidon pour satisfaire setup-node
-      # L'action setup-node plante si elle ne trouve pas ce fichier quand le cache est activé implicitement.
       - name: Create Dummy Lockfile
         run: echo '{}' > package-lock.json
 
@@ -21,9 +20,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # On laisse le cache désactivé explicitement
           cache: '' 
-          # Note: Si cache: '' échoue encore, l'étape précédente aura créé le fichier requis pour éviter l'erreur "not found".
 
       - name: Configuration de Java (JDK 17)
         uses: actions/setup-java@v4
@@ -38,16 +35,18 @@ jobs:
 
       - name: Installation des dépendances
         run: |
-          # On supprime le fichier lock bidon pour laisser npm installer proprement
+          # Nettoyage
           rm package-lock.json
+          
+          # 1. Installation de base sans lockfile
           npm install --legacy-peer-deps --no-package-lock
           
-          # FIX: Installation explicite du paquet 'expo' requis par 'npx expo'
-          # On installe une version compatible avec React Native 0.73 (Expo SDK 50~)
-          npm install expo@~50.0.0 --legacy-peer-deps --save
+          # 2. Installation explicite des versions compatibles Expo SDK 50
+          # Cela évite les warnings et assure que 'npx expo' fonctionne
+          npm install expo@^50.0.0 react-native@0.73.6 --legacy-peer-deps --save
           
-          # Maintenant la commande expo install fonctionnera
-          npx expo install --fix
+          # 3. Installation CLI Expo global (sécurité supplémentaire)
+          npm install -g expo-cli
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
       - name: Backup Native Code
@@ -78,8 +77,9 @@ jobs:
           # Sauvegarde du Manifeste
           if [ -f "android/app/src/main/AndroidManifest.xml" ]; then cp android/app/src/main/AndroidManifest.xml ../native_backup/; fi
 
+      # CORRECTION : Suppression de --no-interactive qui causait l'erreur
       - name: Expo Prebuild
-        run: npx expo prebuild --platform android --clean --no-interactive
+        run: npx expo prebuild --platform android --clean
 
       # VITAL : Réinjection du code natif
       - name: Inject ForceTac Native Engine
