@@ -12,7 +12,6 @@ jobs:
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # FIX 1 : Création d'un package-lock.json bidon
       - name: Create Dummy Lockfile
         run: echo '{}' > package-lock.json
 
@@ -37,39 +36,33 @@ jobs:
         run: |
           rm package-lock.json
           npm install --legacy-peer-deps --no-package-lock
+          # Installation Expo + React Native + Polyfills
           npm install expo@~50.0.14 react-native@0.73.6 expo-build-properties --legacy-peer-deps --save
+          # Installation des polyfills essentiels
+          npm install buffer process react-native-get-random-values react-native-url-polyfill text-encoding-polyfill --legacy-peer-deps --save
           npm install -g expo-cli
 
-      # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
+      # VITAL : Sauvegarde du code natif
       - name: Backup Native Code
         run: |
           mkdir -p ../native_backup
-          
-          # Sauvegarde du C++
           if [ -d "android/app/src/main/cpp" ]; then 
             mkdir -p ../native_backup/cpp
             cp -r android/app/src/main/cpp/* ../native_backup/cpp/
           fi
-          
-          # Sauvegarde du Kotlin (ForceTac package)
           if [ -d "android/app/src/main/java/com/forcetac" ]; then 
             mkdir -p ../native_backup/forcetac
             cp -r android/app/src/main/java/com/forcetac/* ../native_backup/forcetac/
           fi
-          
-          # Sauvegarde des Assets (Clés JSON)
           if [ -d "android/app/src/main/assets" ]; then 
             mkdir -p ../native_backup/assets
             cp -r android/app/src/main/assets/* ../native_backup/assets/
           fi
-          
-          # Sauvegarde de la config build.gradle (NDK config)
-          if [ -f "android/app/build.gradle" ]; then cp android/app/build.gradle ../native_backup/; fi
 
       - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean
 
-      # VITAL : Réinjection du code natif ForceTac + FIX Manifeste & Ressources
+      # VITAL : Réinjection du code natif ForceTac + FIX Manifeste & Build Gradle
       - name: Inject ForceTac Native Engine
         run: |
           echo "💉 Injecting C++ and Kotlin modules..."
@@ -85,8 +78,64 @@ jobs:
              cp -r ../native_backup/assets/* android/app/src/main/assets/ || true
           fi
           
-          # Restauration du build.gradle
-          cp ../native_backup/build.gradle android/app/
+          # FIX CRITIQUE: Génération d'un build.gradle PROPRE
+          cat <<EOF > android/app/build.gradle
+          apply plugin: "com.android.application"
+          apply plugin: "com.facebook.react"
+          
+          android {
+              namespace "com.forcetac"
+              compileSdkVersion 34
+              
+              defaultConfig {
+                  applicationId "com.forcetac"
+                  minSdkVersion 21
+                  targetSdkVersion 34
+                  versionCode 1
+                  versionName "1.0"
+                  externalNativeBuild {
+                      cmake {
+                          cppFlags "-std=c++17"
+                          arguments "-DANDROID_STL=c++_shared"
+                      }
+                  }
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+                  release {
+                      signingConfig signingConfigs.debug
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+                  }
+              }
+              externalNativeBuild {
+                  cmake {
+                      path "src/main/cpp/CMakeLists.txt"
+                  }
+              }
+          }
+          
+          dependencies {
+              implementation("com.facebook.react:react-android")
+              if (hermesEnabled.toBoolean()) {
+                  implementation("com.facebook.react:hermes-android")
+              } else {
+                  implementation jscFlavor
+              }
+          }
+          
+          apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
+          EOF
           
           # FIX CRITIQUE: Génération d'un AndroidManifest.xml PROPRE et VALIDE
           cat <<EOF > android/app/src/main/AndroidManifest.xml
@@ -115,7 +164,6 @@ jobs:
           EOF
           
           # FIX: Création du fichier apdu_service.xml avec REFERENCE @string
-          # L'attribut description exige une référence, pas une string brute.
           mkdir -p android/app/src/main/res/xml
           cat <<EOF > android/app/src/main/res/xml/apdu_service.xml
           <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="@string/service_desc" android:requireDeviceUnlock="false">
@@ -127,13 +175,10 @@ jobs:
           EOF
           
           # FIX: Injection de la ressource manquante dans strings.xml
-          # On s'assure que @string/service_desc existe bien pour satisfaire le linker AAPT
           mkdir -p android/app/src/main/res/values
           if [ -f "android/app/src/main/res/values/strings.xml" ]; then
-              # Insertion propre avant la balise fermante </resources>
               sed -i 's/<\/resources>/    <string name="service_desc">ForceTac NFC Service<\/string>\n<\/resources>/' android/app/src/main/res/values/strings.xml
           else
-              # Création de secours si le fichier n'existe pas
               cat <<EOF > android/app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">ForceTac</string>
