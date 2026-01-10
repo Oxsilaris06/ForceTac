@@ -41,6 +41,12 @@ jobs:
           # On supprime le fichier lock bidon pour laisser npm installer proprement
           rm package-lock.json
           npm install --legacy-peer-deps --no-package-lock
+          
+          # FIX: Installation explicite du paquet 'expo' requis par 'npx expo'
+          # On installe une version compatible avec React Native 0.73 (Expo SDK 50~)
+          npm install expo@~50.0.0 --legacy-peer-deps --save
+          
+          # Maintenant la commande expo install fonctionnera
           npx expo install --fix
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
