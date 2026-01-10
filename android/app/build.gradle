@@ -59,8 +59,5 @@ android {
 
 dependencies {
     implementation("com.facebook.react:react-android")
-    
     implementation project(':react-native-haptic-feedback')
-    implementation project(':react-native-geolocation-service')
-    // Suppression de vector-icons pour stabiliser le build
 }
