@@ -38,7 +38,8 @@ jobs:
           rm package-lock.json
           npm install --legacy-peer-deps --no-package-lock
           # Installation des versions compatibles (Expo SDK 50 / RN 0.73.6)
-          npm install expo@~50.0.14 react-native@0.73.6 --legacy-peer-deps --save
+          # AJOUT: expo-build-properties est requis par la config app.json
+          npm install expo@~50.0.14 react-native@0.73.6 expo-build-properties --legacy-peer-deps --save
           npm install -g expo-cli
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
