@@ -69,7 +69,7 @@ jobs:
       - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean
 
-      # VITAL : Réinjection du code natif ForceTac + FIX Manifeste
+      # VITAL : Réinjection du code natif ForceTac + FIX Manifeste & Ressources
       - name: Inject ForceTac Native Engine
         run: |
           echo "💉 Injecting C++ and Kotlin modules..."
@@ -114,18 +114,33 @@ jobs:
           </manifest>
           EOF
           
-          # Création du fichier apdu_service.xml manquant
-          # FIX: On remplace @string/service_desc par une chaîne en dur "ForceTac NFC Service"
-          # Cela évite l'erreur AAPT si strings.xml n'est pas synchronisé.
+          # FIX: Création du fichier apdu_service.xml avec REFERENCE @string
+          # L'attribut description exige une référence, pas une string brute.
           mkdir -p android/app/src/main/res/xml
           cat <<EOF > android/app/src/main/res/xml/apdu_service.xml
-          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="ForceTac NFC Service" android:requireDeviceUnlock="false">
-              <aid-group android:description="ForceTac NFC Service" android:category="other">
+          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="@string/service_desc" android:requireDeviceUnlock="false">
+              <aid-group android:description="@string/service_desc" android:category="other">
                   <aid-filter android:name="E01600000000" /> 
                   <aid-filter android:name="D2760000850101" />
               </aid-group>
           </host-apdu-service>
           EOF
+          
+          # FIX: Injection de la ressource manquante dans strings.xml
+          # On s'assure que @string/service_desc existe bien pour satisfaire le linker AAPT
+          mkdir -p android/app/src/main/res/values
+          if [ -f "android/app/src/main/res/values/strings.xml" ]; then
+              # Insertion propre avant la balise fermante </resources>
+              sed -i 's/<\/resources>/    <string name="service_desc">ForceTac NFC Service<\/string>\n<\/resources>/' android/app/src/main/res/values/strings.xml
+          else
+              # Création de secours si le fichier n'existe pas
+              cat <<EOF > android/app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">ForceTac</string>
+              <string name="service_desc">ForceTac NFC Service</string>
+          </resources>
+          EOF
+          fi
           
           echo "✅ Injection complete."
 
