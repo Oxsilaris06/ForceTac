@@ -12,8 +12,7 @@ jobs:
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # FIX 1 : Création d'un package-lock.json bidon pour satisfaire setup-node
-      # ForceTac n'a pas de lockfile, donc on en crée un vide pour éviter le crash de setup-node
+      # FIX 1 : Création d'un package-lock.json bidon
       - name: Create Dummy Lockfile
         run: echo '{}' > package-lock.json
 
@@ -36,17 +35,10 @@ jobs:
 
       - name: Installation des dépendances
         run: |
-          # Nettoyage du lockfile bidon
           rm package-lock.json
-          
-          # 1. Installation de base sans lockfile
           npm install --legacy-peer-deps --no-package-lock
-          
-          # 2. Installation explicite des versions compatibles Expo SDK 50
-          # ForceTac utilise RN 0.73.4, on force une version expo compatible
-          npm install expo@^50.0.0 react-native@0.73.6 --legacy-peer-deps --save
-          
-          # 3. Installation CLI Expo global
+          # Installation des versions compatibles (Expo SDK 50 / RN 0.73.6)
+          npm install expo@~50.0.14 react-native@0.73.6 --legacy-peer-deps --save
           npm install -g expo-cli
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
@@ -78,10 +70,11 @@ jobs:
           # Sauvegarde du Manifeste
           if [ -f "android/app/src/main/AndroidManifest.xml" ]; then cp android/app/src/main/AndroidManifest.xml ../native_backup/; fi
 
-      # CORRECTION CRITIQUE : Flag --android-package "com.forcetac"
-      # Cela force le nom du package et évite l'erreur "Input required"
+      # CORRECTION : Suppression du flag --android-package. 
+      # La config est maintenant lue depuis app.json généré précédemment.
+      # Suppression aussi de --no-interactive qui n'est plus supporté.
       - name: Expo Prebuild
-        run: npx expo prebuild --platform android --clean --android-package "com.forcetac"
+        run: npx expo prebuild --platform android --clean
 
       # VITAL : Réinjection du code natif ForceTac
       - name: Inject ForceTac Native Engine
@@ -99,7 +92,7 @@ jobs:
              cp -r ../native_backup/assets/* android/app/src/main/assets/ || true
           fi
           
-          # Restauration du build.gradle (contient la config externalNativeBuild pour Cmake)
+          # Restauration du build.gradle
           cp ../native_backup/build.gradle android/app/
           
           # Restauration du Manifeste
