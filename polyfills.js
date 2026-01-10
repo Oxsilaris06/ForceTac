@@ -1,58 +1,33 @@
-/**
- * Polyfills pour Hermes et l'environnement React Native
- */
+// Polyfills pour la compatibilité Web/Node dans React Native
 
-// 1. Timers (Crucial pour Hermes)
-if (typeof setTimeout === 'undefined') {
-    global.setTimeout = (fn, ms, ...args) => {
-        return global.nativeSetTimeout(fn, ms, ...args);
-    };
-}
+// 1. TextEncoder / TextDecoder (Souvent requis par les libs de crypto ou buffers)
+import 'text-encoding-polyfill';
 
-if (typeof clearTimeout === 'undefined') {
-    global.clearTimeout = (id) => {
-        return global.nativeClearTimeout(id);
-    };
-}
+// 2. Crypto (Pour uuid, nanoid, ou libs de sécurité)
+import 'react-native-get-random-values';
 
-if (typeof setImmediate === 'undefined') {
-    global.setImmediate = (fn, ...args) => {
-        return global.nativeSetImmediate(fn, ...args);
-    };
-}
+// 3. URL et URLSearchParams
+import 'react-native-url-polyfill/auto';
 
-// 2. Fetch API (Souvent manquant dans le contexte de build strict)
-if (typeof fetch === 'undefined') {
-    global.fetch = require('whatwg-fetch').fetch;
-}
-if (typeof Headers === 'undefined') {
-    global.Headers = require('whatwg-fetch').Headers;
-}
-if (typeof Request === 'undefined') {
-    global.Request = require('whatwg-fetch').Request;
-}
-if (typeof Response === 'undefined') {
-    global.Response = require('whatwg-fetch').Response;
+// 4. Buffer (Indispensable pour manipuler les données binaires NFC/Hex)
+global.Buffer = global.Buffer || require('buffer').Buffer;
+
+// 5. process (Certaines libs Node en ont besoin)
+if (typeof process === 'undefined') {
+  global.process = require('process');
+} else {
+  const bProcess = require('process');
+  for (var p in bProcess) {
+    if (!(p in process)) {
+      process[p] = bProcess[p];
+    }
+  }
 }
 
-// 3. Objets Globaux
-if (typeof self === 'undefined') {
-    global.self = global;
+// 6. Console (Evite les crashs si console.x n'existe pas)
+if (!global.console) {
+  global.console = {};
 }
-if (typeof window === 'undefined') {
-    global.window = global;
-}
-if (typeof navigator === 'undefined') {
-    global.navigator = {
-        userAgent: 'ReactNative',
-        product: 'ReactNative',
-        onLine: true
-    };
-}
-
-// 4. Performance
-if (typeof performance === 'undefined') {
-    global.performance = {
-        now: () => Date.now()
-    };
-}
+if (!global.console.log) { global.console.log = () => {}; }
+if (!global.console.warn) { global.console.warn = () => {}; }
+if (!global.console.error) { global.console.error = () => {}; }
