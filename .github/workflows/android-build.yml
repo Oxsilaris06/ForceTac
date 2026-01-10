@@ -37,12 +37,12 @@ jobs:
         run: |
           rm package-lock.json
           npm install --legacy-peer-deps --no-package-lock
-          # Installation des versions compatibles (Expo SDK 50 / RN 0.73.6)
-          # AJOUT: expo-build-properties est requis par la config app.json
           npm install expo@~50.0.14 react-native@0.73.6 expo-build-properties --legacy-peer-deps --save
           npm install -g expo-cli
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
+      # NOTE: On ne sauvegarde PLUS le AndroidManifest.xml car celui du repo est corrompu.
+      # On va en générer un propre à l'étape d'injection.
       - name: Backup Native Code
         run: |
           mkdir -p ../native_backup
@@ -67,17 +67,11 @@ jobs:
           
           # Sauvegarde de la config build.gradle (NDK config)
           if [ -f "android/app/build.gradle" ]; then cp android/app/build.gradle ../native_backup/; fi
-          
-          # Sauvegarde du Manifeste
-          if [ -f "android/app/src/main/AndroidManifest.xml" ]; then cp android/app/src/main/AndroidManifest.xml ../native_backup/; fi
 
-      # CORRECTION : Suppression du flag --android-package. 
-      # La config est maintenant lue depuis app.json généré précédemment.
-      # Suppression aussi de --no-interactive qui n'est plus supporté.
       - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean
 
-      # VITAL : Réinjection du code natif ForceTac
+      # VITAL : Réinjection du code natif ForceTac + FIX Manifeste
       - name: Inject ForceTac Native Engine
         run: |
           echo "💉 Injecting C++ and Kotlin modules..."
@@ -96,8 +90,43 @@ jobs:
           # Restauration du build.gradle
           cp ../native_backup/build.gradle android/app/
           
-          # Restauration du Manifeste
-          cp ../native_backup/AndroidManifest.xml android/app/src/main/
+          # FIX CRITIQUE: Génération d'un AndroidManifest.xml PROPRE et VALIDE
+          # (Celui du repo était corrompu/dupliqué, causant l'erreur de parsing)
+          cat <<EOF > android/app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.forcetac">
+              <uses-permission android:name="android.permission.NFC" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-feature android:name="android.hardware.nfc" android:required="true" />
+              <uses-feature android:name="android.hardware.nfc.hce" android:required="true" />
+              <application android:label="ForceTac" android:name=".MainApplication" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:theme="@style/AppTheme">
+                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <service android:name=".HceService" android:exported="true" android:permission="android.permission.BIND_NFC_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE"/>
+                      </intent-filter>
+                      <meta-data android:name="android.nfc.cardemulation.host_apdu_service" android:resource="@xml/apdu_service"/>
+                  </service>
+              </application>
+          </manifest>
+          EOF
+          
+          # Création du fichier apdu_service.xml manquant
+          mkdir -p android/app/src/main/res/xml
+          cat <<EOF > android/app/src/main/res/xml/apdu_service.xml
+          <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="@string/service_desc" android:requireDeviceUnlock="false">
+              <aid-group android:description="@string/service_desc" android:category="other">
+                  <aid-filter android:name="E01600000000" /> 
+                  <aid-filter android:name="D2760000850101" />
+              </aid-group>
+          </host-apdu-service>
+          EOF
           
           echo "✅ Injection complete."
 
