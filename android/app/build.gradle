@@ -2,7 +2,6 @@ apply plugin: "com.android.application"
 apply plugin: "com.facebook.react"
 
 react {
-    // Pointe vers le bon fichier d'entrée
     entryFile = file("../../index.js")
     bundleAssetName = "index.android.bundle"
 }
@@ -58,15 +57,10 @@ android {
     }
 }
 
-// Configuration des polices d'icônes
-apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
-
 dependencies {
     implementation("com.facebook.react:react-android")
-    // Le moteur Hermes est désormais inclus par défaut dans react-android pour RN 0.73+
-    // Plus besoin de conditionnelle complexe qui fait planter le build
     
     implementation project(':react-native-haptic-feedback')
     implementation project(':react-native-geolocation-service')
-    implementation project(':react-native-vector-icons')
+    // Suppression de vector-icons pour stabiliser le build
 }
