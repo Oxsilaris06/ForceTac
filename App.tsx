@@ -4,7 +4,6 @@ import {
   SafeAreaView, StatusBar, Animated, Platform, PermissionsAndroid 
 } from 'react-native';
 import ReactNativeHapticFeedback from "react-native-haptic-feedback";
-import Geolocation from 'react-native-geolocation-service';
 import { NativeModules, DeviceEventEmitter } from 'react-native';
 
 const { NfcModule } = NativeModules;
@@ -25,7 +24,6 @@ const hapticOpts = { enableVibrateFallback: true, ignoreAndroidSystemSettings: t
 export default function App() {
   const [status, setStatus] = useState<'IDLE' | 'SCANNING' | 'CRACKING' | 'SUCCESS' | 'ERROR'>('IDLE');
   const [logs, setLogs] = useState<{msg: string, type: string, time: string}[]>([]);
-  const [location, setLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [recoveredKey, setRecoveredKey] = useState<string | null>(null);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -38,7 +36,10 @@ export default function App() {
       ])
     ).start();
 
-    requestPermissions();
+    // Init par défaut (Paris) pour le moteur natif, car GPS désactivé pour stabilité build
+    if (NfcModule && NfcModule.updateLocation) {
+        NfcModule.updateLocation(48.85, 2.35);
+    }
 
     const sub = DeviceEventEmitter.addListener('onNfcEvent', (e) => {
       handleNfcEvent(e);
@@ -46,29 +47,6 @@ export default function App() {
 
     return () => sub.remove();
   }, []);
-
-  const requestPermissions = async () => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        Geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            setLocation({ latitude, longitude });
-            // Envoi de la position réelle au module natif
-            if (NfcModule && NfcModule.updateLocation) {
-                NfcModule.updateLocation(latitude, longitude);
-                addLog(`GPS LOCKED: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'info');
-            }
-          },
-          (error) => addLog(`GPS ERROR: ${error.message}`, 'danger'),
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
-      } else {
-        addLog("GPS REFUSÉ - Dictionnaire local désactivé", 'danger');
-      }
-    }
-  };
 
   const handleNfcEvent = (e: any) => {
     switch(e.type) {
@@ -96,6 +74,10 @@ export default function App() {
         setStatus('ERROR');
         addLog(`ERREUR: ${e.message}`, 'danger');
         break;
+      case 'SUCCESS':
+         addLog(`SUCCÈS: ${e.message}`, 'success');
+         ReactNativeHapticFeedback.trigger("notificationSuccess", hapticOpts);
+         break;
     }
   };
 
@@ -135,10 +117,8 @@ export default function App() {
         <Animated.View style={[styles.radarCircle, { transform: [{ scale: pulseAnim }], borderColor: getStatusColor() }]}>
           <View style={[styles.radarCore, { backgroundColor: getStatusColor() }]} />
         </Animated.View>
-        <Text style={[styles.radarText, { color: location ? COLORS.TEXT : COLORS.WARNING }]}>
-          {location 
-            ? `CIBLE: ${location.latitude.toFixed(4)} / ${location.longitude.toFixed(4)}` 
-            : "📍 POSITION EN COURS DE RECHERCHE..."}
+        <Text style={[styles.radarText, { color: COLORS.TEXT }]}>
+          SCANNER PRÊT - MODE HYBRIDE
         </Text>
       </View>
 
