@@ -1,4 +1,56 @@
 {
   "name": "ForceTac",
-  "displayName": "ForceTac"
+  "displayName": "ForceTac",
+  "expo": {
+    "name": "ForceTac",
+    "slug": "forcetac",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#050505"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.forcetac",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#050505"
+      },
+      "permissions": [
+        "android.permission.NFC",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "forcetac-project-id"
+      }
+    }
+  }
 }
