@@ -1,6 +1,7 @@
-name: ForceTac Android Build (Hybrid Expo)
+name: Build Android APK (Debug)
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,11 +12,18 @@ jobs:
       - name: Checkout du code
         uses: actions/checkout@v4
 
+      # FIX ULTIME : Création d'un package-lock.json bidon pour satisfaire setup-node
+      # L'action setup-node plante si elle ne trouve pas ce fichier quand le cache est activé implicitement.
+      - name: Create Dummy Lockfile
+        run: echo '{}' > package-lock.json
+
       - name: Configuration de Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # On laisse le cache désactivé explicitement
+          cache: '' 
+          # Note: Si cache: '' échoue encore, l'étape précédente aura créé le fichier requis pour éviter l'erreur "not found".
 
       - name: Configuration de Java (JDK 17)
         uses: actions/setup-java@v4
@@ -23,20 +31,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android NDK (Vital pour le C++)
+      - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26d
 
       - name: Installation des dépendances
         run: |
-          npm cache clean --force
-          npm install --legacy-peer-deps
-          # Installation de expo-cli localement pour le prebuild
-          npm install -g expo-cli
+          # On supprime le fichier lock bidon pour laisser npm installer proprement
+          rm package-lock.json
+          npm install --legacy-peer-deps --no-package-lock
+          npx expo install --fix
 
-      # Sauvegarde de votre code natif personnalisé avant que le prebuild ne touche à tout
-      # On sauvegarde TOUT ce qui est critique
+      # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
       - name: Backup Native Code
         run: |
           mkdir -p ../native_backup
@@ -59,68 +66,59 @@ jobs:
             cp -r android/app/src/main/assets/* ../native_backup/assets/
           fi
           
-          # Sauvegarde de la config build.gradle (NDK config)
+          # Sauvegarde de la config build.gradle
           if [ -f "android/app/build.gradle" ]; then cp android/app/build.gradle ../native_backup/; fi
           
-          # Sauvegarde du Manifeste (Services HCE)
+          # Sauvegarde du Manifeste
           if [ -f "android/app/src/main/AndroidManifest.xml" ]; then cp android/app/src/main/AndroidManifest.xml ../native_backup/; fi
 
-      # Génération de l'infrastructure Android via Expo
-      # Cette étape crée un dossier android/ propre et fonctionnel
       - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean --no-interactive
 
-      # Restauration et Injection du code ForceTac (C++ / Kotlin) dans le projet généré
+      # VITAL : Réinjection du code natif
       - name: Inject ForceTac Native Engine
         run: |
           echo "💉 Injecting C++ and Kotlin modules..."
           
-          # 1. Restauration du moteur C++
           mkdir -p android/app/src/main/cpp
           cp -r ../native_backup/cpp/* android/app/src/main/cpp/
           
-          # 2. Restauration du module Kotlin (NfcModule, HceService, Package)
-          # On s'assure que le dossier package existe
           mkdir -p android/app/src/main/java/com/forcetac
           cp -r ../native_backup/forcetac/* android/app/src/main/java/com/forcetac/
           
-          # 3. Restauration des Assets (Clés, Icônes)
           mkdir -p android/app/src/main/assets
           if [ -d "../native_backup/assets" ]; then
              cp -r ../native_backup/assets/* android/app/src/main/assets/ || true
           fi
           
-          # 4. Restauration du build.gradle (Vital pour le NDK)
-          # On écrase celui généré par Expo car il ne contient pas la config externalNativeBuild
           cp ../native_backup/build.gradle android/app/
-          
-          # 5. Restauration du Manifeste (Pour les permissions NFC)
           cp ../native_backup/AndroidManifest.xml android/app/src/main/
           
           echo "✅ Injection complete."
 
-      # Génération du Keystore
-      - name: Generate Debug Keystore
+      - name: Force Bundle JS
         run: |
-          cd android/app
-          if [ -f debug.keystore ]; then rm debug.keystore; fi
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p android/app/src/main/assets
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res
 
-      # Correction du Wrapper Gradle (Force 8.6 pour compatibilité RN 0.74)
-      - name: Fix Gradle Wrapper
+      - name: Fix Gradle Wrapper (Force 8.6-bin)
         run: |
           cd android/gradle/wrapper
           sed -i 's/distributionUrl=.*$/distributionUrl=https\:\/\/services.gradle.org\/distributions\/gradle-8.6-bin.zip/g' gradle-wrapper.properties
 
-      # Build final
-      - name: Build Android APK
+      - name: Build Android APK (Debug)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleDebug -Dorg.gradle.jvmargs="-Xmx4608m -XX:MaxMetaspaceSize=1024m" --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Télécharger l'APK
         uses: actions/upload-artifact@v4
         with:
-          name: forcetac-release
-          path: android/app/build/outputs/apk/release/*.apk
+          name: comtac-v14-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
