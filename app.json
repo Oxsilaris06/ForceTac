@@ -21,6 +21,7 @@
     },
     "android": {
       "package": "com.forcetac",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#050505"
@@ -32,9 +33,6 @@
         "android.permission.INTERNET"
       ]
     },
-    "web": {
-      "favicon": "./assets/icon.png"
-    },
     "plugins": [
       [
         "expo-build-properties",
@@ -42,15 +40,14 @@
           "android": {
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "buildToolsVersion": "34.0.0",
+            "kotlinVersion": "1.8.0"
           }
         }
       ]
     ],
-    "extra": {
-      "eas": {
-        "projectId": "forcetac-project-id"
-      }
+    "web": {
+      "favicon": "./assets/icon.png"
     }
   }
 }
