@@ -1,12 +1,4 @@
-name: ForceTac Android Build
-
-on: [workflow_dispatch]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4name: ForceTac Android Build (Hybrid Expo)
+name: ForceTac Android Build (Hybrid Expo)
 
 on: [workflow_dispatch]
 
@@ -126,94 +118,6 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: forcetac-release
-          path: android/app/build/outputs/apk/release/*.apk
-      
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26d
-
-      - name: Install Node Deps
-        run: npm install
-
-      # Stratégie de Build : On génère un squelette propre et on injecte notre code
-      - name: Initialize Android Environment
-        run: |
-          # 1. Sauvegarde de votre code source unique (C++, Kotlin, Assets)
-          echo "📦 Backing up source code..."
-          mkdir -p ../backup
-          cp -r android/app/src ../backup/
-          cp -r android/app/build.gradle ../backup/
-          cp package.json ../backup/
-          
-          # 2. Génération d'un projet RN propre dans un sous-dossier
-          echo "🔧 Generating fresh React Native project..."
-          # On supprime le dossier android actuel pour éviter les conflits
-          rm -rf android
-          
-          # On génère dans un dossier temporaire 'ForceTacTemp'
-          npx react-native@0.73.4 init ForceTacTemp --skip-install --version 0.73.4
-          
-          # On déplace le contenu du temp vers la racine (overwrite)
-          cp -r ForceTacTemp/android .
-          # On peut avoir besoin de certains fichiers de config racine aussi
-          cp ForceTacTemp/metro.config.js . 2>/dev/null || true
-          cp ForceTacTemp/babel.config.js . 2>/dev/null || true
-          
-          # Nettoyage
-          rm -rf ForceTacTemp
-          
-          # 3. Restauration de VOTRE code par dessus le squelette
-          echo "♻️ Restoring custom source code..."
-          # On écrase le src/main par le vôtre
-          cp -r ../backup/src/* android/app/src/
-          
-          # On restaure votre build.gradle spécifique (avec NDK et configs)
-          cp ../backup/build.gradle android/app/
-          
-          # On s'assure que package.json est synchronisé
-          cp ../backup/package.json .
-          
-          # Installation des dépendances finales
-          npm install
-
-      - name: Generate Debug Keystore
-        run: |
-          cd android/app
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          echo "✅ Keystore generated."
-
-      - name: Inject Custom Icon
-        run: |
-          if [ -f "assets/icon.png" ]; then
-            echo "🎨 Injecting custom icon..."
-            RES_DIR="android/app/src/main/res"
-            for d in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-              mkdir -p "$RES_DIR/$d"
-              cp assets/icon.png "$RES_DIR/$d/ic_launcher.png"
-              cp assets/icon.png "$RES_DIR/$d/ic_launcher_round.png"
-            done
-          fi
-
-      - name: Build Release APK
-        run: |
-          cd android
-          # Configuration pour ignorer les erreurs de lint non bloquantes
-          echo "android.disableAutomaticComponentCreation=true" >> gradle.properties
-          
-          # Lancement du build
-          ./gradlew assembleRelease --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
