@@ -1,11 +1,7 @@
-/**
- * @format
- */
-// IMPORT CRITIQUE : Les polyfills doivent être chargés AVANT tout le reste
-import './polyfills';
-
-import {AppRegistry} from 'react-native';
+import { AppRegistry } from 'react-native';
 import App from './App';
-import {name as appName} from './app.json';
+import { name as appName } from './app.json';
 
+// FIX CRITIQUE : Assure que le nom correspond à MainActivity.java
+// Si app.json contient "name": "ForceTac", cela fonctionnera.
 AppRegistry.registerComponent(appName, () => App);
