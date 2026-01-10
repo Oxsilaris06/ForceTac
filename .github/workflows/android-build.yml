@@ -79,6 +79,7 @@ jobs:
           fi
           
           # FIX CRITIQUE: Génération d'un build.gradle PROPRE
+          # UPDATE: Changed minSdkVersion to 23 to resolve manifest merger conflict with Expo
           cat <<EOF > android/app/build.gradle
           apply plugin: "com.android.application"
           apply plugin: "com.facebook.react"
@@ -89,7 +90,7 @@ jobs:
               
               defaultConfig {
                   applicationId "com.forcetac"
-                  minSdkVersion 21
+                  minSdkVersion 23
                   targetSdkVersion 34
                   versionCode 1
                   versionName "1.0"
