@@ -12,7 +12,8 @@ jobs:
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # FIX ULTIME : Création d'un package-lock.json bidon pour satisfaire setup-node
+      # FIX 1 : Création d'un package-lock.json bidon pour satisfaire setup-node
+      # ForceTac n'a pas de lockfile, donc on en crée un vide pour éviter le crash de setup-node
       - name: Create Dummy Lockfile
         run: echo '{}' > package-lock.json
 
@@ -35,17 +36,17 @@ jobs:
 
       - name: Installation des dépendances
         run: |
-          # Nettoyage
+          # Nettoyage du lockfile bidon
           rm package-lock.json
           
           # 1. Installation de base sans lockfile
           npm install --legacy-peer-deps --no-package-lock
           
           # 2. Installation explicite des versions compatibles Expo SDK 50
-          # Cela évite les warnings et assure que 'npx expo' fonctionne
+          # ForceTac utilise RN 0.73.4, on force une version expo compatible
           npm install expo@^50.0.0 react-native@0.73.6 --legacy-peer-deps --save
           
-          # 3. Installation CLI Expo global (sécurité supplémentaire)
+          # 3. Installation CLI Expo global
           npm install -g expo-cli
 
       # VITAL : Sauvegarde du code natif (C++ / Kotlin) avant le nettoyage Expo
@@ -71,17 +72,18 @@ jobs:
             cp -r android/app/src/main/assets/* ../native_backup/assets/
           fi
           
-          # Sauvegarde de la config build.gradle
+          # Sauvegarde de la config build.gradle (NDK config)
           if [ -f "android/app/build.gradle" ]; then cp android/app/build.gradle ../native_backup/; fi
           
           # Sauvegarde du Manifeste
           if [ -f "android/app/src/main/AndroidManifest.xml" ]; then cp android/app/src/main/AndroidManifest.xml ../native_backup/; fi
 
-      # CORRECTION : Suppression de --no-interactive qui causait l'erreur
+      # CORRECTION CRITIQUE : Flag --android-package "com.forcetac"
+      # Cela force le nom du package et évite l'erreur "Input required"
       - name: Expo Prebuild
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean --android-package "com.forcetac"
 
-      # VITAL : Réinjection du code natif
+      # VITAL : Réinjection du code natif ForceTac
       - name: Inject ForceTac Native Engine
         run: |
           echo "💉 Injecting C++ and Kotlin modules..."
@@ -97,7 +99,10 @@ jobs:
              cp -r ../native_backup/assets/* android/app/src/main/assets/ || true
           fi
           
+          # Restauration du build.gradle (contient la config externalNativeBuild pour Cmake)
           cp ../native_backup/build.gradle android/app/
+          
+          # Restauration du Manifeste
           cp ../native_backup/AndroidManifest.xml android/app/src/main/
           
           echo "✅ Injection complete."
@@ -126,5 +131,5 @@ jobs:
       - name: Télécharger l'APK
         uses: actions/upload-artifact@v4
         with:
-          name: comtac-v14-debug
+          name: forcetac-v1-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
