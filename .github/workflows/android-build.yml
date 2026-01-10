@@ -26,17 +26,31 @@ jobs:
       - name: Initialize Android Environment
         run: |
           # 1. Sauvegarde de votre code source unique (C++, Kotlin, Assets)
+          echo "📦 Backing up source code..."
           mkdir -p ../backup
           cp -r android/app/src ../backup/
           cp -r android/app/build.gradle ../backup/
           cp package.json ../backup/
           
-          # 2. Génération d'un projet RN propre (qui compile à 100%)
-          # On supprime le dossier android actuel pour éviter les conflits de fusion
+          # 2. Génération d'un projet RN propre dans un sous-dossier
+          echo "🔧 Generating fresh React Native project..."
+          # On supprime le dossier android actuel pour éviter les conflits
           rm -rf android
-          npx react-native@0.73.4 init ForceTac --skip-install --version 0.73.4 --directory .
+          
+          # On génère dans un dossier temporaire 'ForceTacTemp'
+          npx react-native@0.73.4 init ForceTacTemp --skip-install --version 0.73.4
+          
+          # On déplace le contenu du temp vers la racine (overwrite)
+          cp -r ForceTacTemp/android .
+          # On peut avoir besoin de certains fichiers de config racine aussi
+          cp ForceTacTemp/metro.config.js . 2>/dev/null || true
+          cp ForceTacTemp/babel.config.js . 2>/dev/null || true
+          
+          # Nettoyage
+          rm -rf ForceTacTemp
           
           # 3. Restauration de VOTRE code par dessus le squelette
+          echo "♻️ Restoring custom source code..."
           # On écrase le src/main par le vôtre
           cp -r ../backup/src/* android/app/src/
           
@@ -45,6 +59,8 @@ jobs:
           
           # On s'assure que package.json est synchronisé
           cp ../backup/package.json .
+          
+          # Installation des dépendances finales
           npm install
 
       - name: Generate Debug Keystore
